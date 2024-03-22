@@ -30,11 +30,11 @@ JOBS_DIR = joinpath(OUTPUT_SUBDIR, "jobs")
 SWEEP_DB_FILENAME = joinpath(OUTPUT_SUBDIR, "sweep_db.sqlite")
 
 # Number of replicates for each parameter combination.
-const N_REPLICATES = 16
+const N_REPLICATES = 15
 
 # Number of jobs to generate (one machine with > 15 cores)
 const N_JOBS_MAX = 1
-const N_CORES_PER_JOB_MAX = 4
+const N_CORES_PER_JOB_MAX = 15
 
 function main()
     if !ispath(OUTPUT_DIR)
