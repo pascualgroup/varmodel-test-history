@@ -210,7 +210,6 @@ end
 function init_base_params()
     t_year = 360
 #     daily_biting_rate_multiplier = readdlm("../mosquito_population.txt", Float64)[:,1]
-    #snp_ld_matrix = readdlm("../pairwise_ld_coefficient_24snps.txt", Float64)
 
     t_end_years = 100
     t_end = t_end_years * t_year
@@ -317,16 +316,6 @@ function init_base_params()
         migrants_match_local_prevalence = false,
 #         migrants_match_local_prevalence = true,
         migration_rate_update_period = 30,
-
-        n_snps_per_strain = 0,
-
-        distinct_initial_snp_allele_frequencies = false,
-#         distinct_initial_snp_allele_frequencies = true,
-#         initial_snp_allele_frequency = [0.1, 0.9],
-
-        snp_linkage_disequilibrium = false,
-#         snp_linkage_disequilibrium = true,
-#         snp_pairwise_ld = [snp_ld_matrix[:,i] for i in 1:size(snp_ld_matrix)[2]],
 
 
         
