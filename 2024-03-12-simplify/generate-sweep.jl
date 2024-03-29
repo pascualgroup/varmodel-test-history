@@ -32,8 +32,7 @@ SWEEP_DB_FILENAME = joinpath(OUTPUT_SUBDIR, "sweep_db.sqlite")
 # Number of replicates for each parameter combination.
 const N_REPLICATES = 15
 
-# Number of jobs to generate (one machine with > 15 cores)
-const N_JOBS_MAX = 1
+# Run 15 jobs at the same time
 const N_CORES_PER_JOB_MAX = 15
 
 function main()
@@ -56,7 +55,7 @@ function main()
     end
     db = SQLite.DB(SWEEP_DB_FILENAME)
     execute(db, "CREATE TABLE meta (key, value)")
-    execute(db, "CREATE TABLE param_combos (combo_id INTEGER)")
+    execute(db, "CREATE TABLE param_combos (combo_id, biting_rate, immigration_rate_fraction, immunity_loss_rate, n_genes_initial, switching_rate_A, switching_rate_BC, ectopic_recombination_rate_A, ectopic_recombination_rate_BC, functionality_BC)")
     execute(db, "CREATE TABLE runs (run_id INTEGER, combo_id INTEGER, replicate INTEGER, rng_seed INTEGER, run_dir TEXT, params TEXT)")
     execute(db, "CREATE TABLE jobs (job_id INTEGER, job_dir TEXT)")
     execute(db, "CREATE TABLE job_runs (job_id INTEGER, run_id INTEGER)")
@@ -71,24 +70,125 @@ function generate_runs(db)
 
     # Base parameter set, copied/modified for each combination/replicate.
     base_params = init_base_params()
-    validate(base_params)
+    daily_biting_rate_multiplier = readdlm("mosquito_population.txt", Float64)[:,1]
+    # validate(base_params)
     execute(db, "INSERT INTO meta VALUES (?, ?)", ("base_params", pretty_json(base_params)))
+
+    # Construct parameter combinations
+    combos = []
+
+    # biting rate endpoints
+    for biting_rate in (1e-5, 1e-4)
+        push!(combos, (
+            biting_rate = biting_rate,
+            immigration_rate_fraction = 3e-4,
+            immunity_loss_rate = 3e-4,
+            n_genes_initial = 10000,
+            switching_rate_A = 0.25,
+            switching_rate_BC = 0.20,
+            ectopic_recombination_rate_A = 2e-5,
+            ectopic_recombination_rate_BC = 7e-4,
+            functionality_BC = 0.4
+        ))
+    end
+
+    # immigration rate endpoints
+    for immigration_rate_fraction in (3e-4, 3e-2)
+        push!(combos, (
+            biting_rate = 1e-5,
+            immigration_rate_fraction = immigration_rate_fraction,
+            immunity_loss_rate = 3e-4,
+            n_genes_initial = 10000,
+            switching_rate_A = 0.25,
+            switching_rate_BC = 0.20,
+            ectopic_recombination_rate_A = 2e-5,
+            ectopic_recombination_rate_BC = 7e-4,
+            functionality_BC = 0.4
+        ))
+    end
+
+    # immunity loss endpoints
+    for immunity_loss_rate in (3e-4, 2e-3)
+        push!(combos, (
+            biting_rate = 1e-5,
+            immigration_rate_fraction = 3e-4,
+            immunity_loss_rate = immunity_loss_rate,
+            n_genes_initial = 10000,
+            switching_rate_A = 0.25,
+            switching_rate_BC = 0.20,
+            ectopic_recombination_rate_A = 2e-5,
+            ectopic_recombination_rate_BC = 7e-4,
+            functionality_BC = 0.4
+        ))
+    end
+
+    # switching rate endpoints
+    for switching_rate_A in (0.125, 0.25)
+        push!(combos, (
+            biting_rate = 1e-5,
+            immigration_rate_fraction = 3e-4,
+            immunity_loss_rate = 3e-4,
+            n_genes_initial = 10000,
+            switching_rate_A = switching_rate_A,
+            switching_rate_BC = switching_rate_A * 0.8,
+            ectopic_recombination_rate_A = 2e-5,
+            ectopic_recombination_rate_BC = 7e-4,
+            functionality_BC = 0.4
+        ))
+    end
+
+    # ectopic recombination endpoints
+    for ectopic_recombination_rate_A in (2e-5, 7e-4)
+        push!(combos, (
+            biting_rate = 1e-5,
+            immigration_rate_fraction = 3e-4,
+            immunity_loss_rate = 3e-4,
+            n_genes_initial = 10000,
+            switching_rate_A = 0.25,
+            switching_rate_BC = 0.20,
+            ectopic_recombination_rate_A = ectopic_recombination_rate_A,
+            ectopic_recombination_rate_BC = ectopic_recombination_rate_A * 2.0,
+            functionality_BC = 0.4
+        ))
+    end
+
+    # functionality endpoints
+    for functionality_BC in (0.4, 1.0)
+        push!(combos, (
+            biting_rate = 1e-5,
+            immigration_rate_fraction = 3e-4,
+            immunity_loss_rate = 3e-4,
+            n_genes_initial = 10000,
+            switching_rate_A = 0.25,
+            switching_rate_BC = 0.20,
+            ectopic_recombination_rate_A = 2e-5,
+            ectopic_recombination_rate_BC = 7e-4,
+            functionality_BC = functionality_BC
+        ))
+    end
 
     # Loop through parameter combinations and replicates, generating a run directory
     # `runs/c<combo_id>/r<replicate>` for each one.
-    combo_id = 1
     run_id = 1
-    begin # placeholder block for parameter combination loop
+    for (combo_id, combo_params) in enumerate(combos)
         println("Processing c$(combo_id)")
 
-        execute(db, "INSERT INTO param_combos VALUES (?)", (combo_id,))
+        execute(db, "INSERT INTO param_combos VALUES (?,?,?,?,?,?,?,?,?,?)", vcat([combo_id,], collect(combo_params)))
 
         for replicate in 1:N_REPLICATES
             rng_seed = rand(seed_rng, 1:typemax(Int64))
             params = Params(
                 base_params;
                 rng_seed = rng_seed,
+                biting_rate = combo_params[:biting_rate] * daily_biting_rate_multiplier,
+                immigration_rate_fraction = combo_params[:immigration_rate_fraction],
+                immunity_loss_rate = combo_params[:immunity_loss_rate],
+                n_genes_initial = combo_params[:n_genes_initial],
+                switching_rate = [combo_params[:switching_rate_A], combo_params[:switching_rate_BC]],
+                ectopic_recombination_rate = [combo_params[:ectopic_recombination_rate_A], combo_params[:ectopic_recombination_rate_BC]],
+                var_groups_functionality = [1.0, combo_params[:functionality_BC]]
             )
+            validate(params)
 
             run_dir = joinpath(RUNS_DIR, "c$(combo_id)", "r$(replicate)")
             @assert !ispath(run_dir)
@@ -124,13 +224,12 @@ end
 function generate_jobs(db)
     println("Assigning runs to jobs...")
 
-    # Assign runs to jobs (round-robin).
-    job_id = 1
-    for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs ORDER BY replicate, combo_id")
-        execute(db, "INSERT INTO job_runs VALUES (?,?)", (job_id, run_id))
-
-        # Mod-increment job ID.
-        job_id = (job_id % N_JOBS_MAX) + 1
+    # Make one job for each parameter combo
+    combo_ids = [combo_id for (combo_id,) in execute(db, "SELECT DISTINCT combo_id FROM runs ORDER BY combo_id")]
+    for combo_id in combo_ids
+        for (run_id, run_dir) in execute(db, "SELECT run_id, run_dir FROM runs WHERE combo_id = ? ORDER BY replicate", [combo_id])
+            execute(db, "INSERT INTO job_runs VALUES (?,?)", (combo_id, run_id))
+        end
     end
 
     # Create job directories containing job scripts and script to submit all jobs.
@@ -211,7 +310,7 @@ function init_base_params()
     t_year = 360
 #     daily_biting_rate_multiplier = readdlm("../mosquito_population.txt", Float64)[:,1]
 
-    t_end_years = 10
+    t_end_years = 100
     t_end = t_end_years * t_year
 
     # Uncomment this, and argument to Params() below, to enable an intervention
@@ -243,14 +342,14 @@ function init_base_params()
         output_db_filename = "output.sqlite",
 
         summary_period = 30,
-        gene_strain_count_period = t_year,
+        gene_strain_count_period = 30,
 
         host_sampling_period = [],
-        host_sample_size = 100,
+        host_sample_size = 0,
 
         verification_period = t_end,
 
-        sample_infection_duration_every = 1000,
+        sample_infection_duration_every = 1000000,
 
         rng_seed = nothing,
         whole_gene_immune = false,
@@ -263,14 +362,14 @@ function init_base_params()
         n_hosts = 2000,
         n_initial_infections = 20,
 
-        n_genes_initial = 1200,
+        n_genes_initial = 25000,
         n_genes_per_strain = 60,
 
         n_loci = 2,
 
-        n_alleles_per_locus_initial = 960, 
+        n_alleles_per_locus_initial = 2000, 
 
-        transmissibility = 0.5,
+        transmissibility = 1.0,
         coinfection_reduces_transmission = true,
 
         # ectopic_recombination_rate = 1.8e-7,
@@ -278,10 +377,8 @@ function init_base_params()
         ectopic_recombination_rate = [0.0, 0.0],
         p_ectopic_recombination_is_conversion = 0.0,
 
-        ectopic_recombination_generates_new_alleles = false,
-
-#         ectopic_recombination_generates_new_alleles = true,
-#         p_ectopic_recombination_generates_new_allele = 0.5,
+        ectopic_recombination_generates_new_alleles = true,
+        p_ectopic_recombination_generates_new_allele = 0.2,
 
         rho_recombination_tolerance = 0.8,
         mean_n_mutations_per_epitope = 5.0,
@@ -290,8 +387,8 @@ function init_base_params()
         immunity_loss_rate = 0.0,
 #         immunity_loss_rate = 0.001,
 
-        mutation_rate = 0.0,
-#         mutation_rate = 1.42e-8,
+        # mutation_rate = 0.0,
+        mutation_rate = 1.42e-8,
 
         t_liver_stage = 14.0,
 
@@ -307,8 +404,8 @@ function init_base_params()
         n_infections_liver_max = 20,
         n_infections_active_max = 20,
 
-        biting_rate = repeat([0.5], t_year),
-        biting_rate_mean = 0.01, # DOES NOTHING???
+        # biting_rate = repeat([0.5], t_year),
+        biting_rate_mean = VERSION_SUFFIX == "before" ? 0.01 : nothing, # DOES NOTHING???
 #         biting_rate = 0.00002 * daily_biting_rate_multiplier, # 0.0005
 
 #         biting_rate_multiplier_by_year = biting_rate_multiplier_by_year,
