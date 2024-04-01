@@ -4,7 +4,7 @@ REPO="https://github.com/pascualgroup/varmodel3"
 
 git clone $REPO varmodel3-before
 cd varmodel3-before
-git checkout fb4c106683631717c9fb06ee60d2a88593b57391
+git checkout 2024-03-12-simplify-before
 cd ..
 
 git clone $REPO varmodel3-after
