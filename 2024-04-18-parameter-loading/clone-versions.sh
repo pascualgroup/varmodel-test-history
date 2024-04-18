@@ -9,4 +9,5 @@ cd ..
 
 git clone $REPO varmodel3-after
 cd varmodel3-after
-git checkout 8bf65dfc443f05416091dd9fc3982c1f0b291b8e
+git checkout d8759131784536682db7e68dbd21330c61335a02
+

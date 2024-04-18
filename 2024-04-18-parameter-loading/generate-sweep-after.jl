@@ -179,8 +179,7 @@ function generate_runs(db)
 
         for replicate in 1:N_REPLICATES
             rng_seed = rand(seed_rng, 1:typemax(Int64))
-            params = Params(base_params)
-            assign_fields!(params, (
+            params = add_params(base_params, (
                 rng_seed = rng_seed,
                 biting_rate = combo_params[:biting_rate] * daily_biting_rate_multiplier,
                 immigration_rate_fraction = combo_params[:immigration_rate_fraction],
@@ -323,8 +322,7 @@ function init_base_params()
     t_burnin_years = 0
     t_burnin = t_burnin_years * t_year
 
-    params = Params()
-    assign_fields!(params, (
+    add_params(Params(), (
         upper_bound_recomputation_period = 30,
 
         output_db_filename = "output.sqlite",
@@ -384,7 +382,6 @@ function init_base_params()
         # switching_rate = 1.0/6.0,
 
         mean_host_lifetime = 23.38837487739662,
-        max_host_lifetime = nothing,
 
         background_clearance_rate = 0.0,
         immigration_rate_fraction = 0.0026,
@@ -393,7 +390,6 @@ function init_base_params()
         n_infections_active_max = 20,
 
         # biting_rate = repeat([0.5], t_year),
-        biting_rate_mean = nothing, # DOES NOTHING?
 #         biting_rate = 0.00002 * daily_biting_rate_multiplier, # 0.0005
 
 #         biting_rate_multiplier_by_year = biting_rate_multiplier_by_year,
@@ -411,15 +407,11 @@ function init_base_params()
         var_groups_do_not_share_alleles = true,
         var_groups_high_functionality_express_earlier = true,
         gene_group_id_association_recomputation_period = 30,
-
-        n_snps_per_strain = 0,
-        snp_linkage_disequilibrium = false,
         
         # Profiling parameters
         profile_on = true,
         profile_delay = 0.01
     ))
-    params
 end
 
 main()
